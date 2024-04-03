@@ -4,12 +4,23 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.sql.Date; // For java.sql.Date
+// import java.sql.Connection;
+// import java.sql.DriverManager;
+// import java.sql.PreparedStatement;
+// import java.sql.ResultSet;
+// import java.sql.SQLException;
+// import java.sql.Statement;
 
 
 public class BookOrderingSystem {
 
     private static final Scanner scanner = new Scanner(System.in);
-
+    public static String dbAddress = "jdbc:oracle:thin:@db18.cse.cuhk.edu.hk:1521/oradb.cse.cuhk.edu.hk";
+    public static String dbUsername = "h043"; // replace with your actual username
+    public static String dbPassword = "icedJalj"; // replace with your actual password
     public static void main(String[] args) {
         Connection conn = connectToOracle();
         int choice;
@@ -33,10 +44,10 @@ public class BookOrderingSystem {
                     showSystemInterface(conn, scanner);
                     break;
                 case 2:
-                    showCustomerInterface(conn);
+                    showCustomerInterface(conn, scanner);
                     break;
                 case 3:
-                    showBookstoreInterface(conn);
+                    showBookstoreInterface(conn, scanner);
                     break;
                 case 4:
                     System.out.println((latestOrderDate != null ? latestOrderDate : "0000-00-00"));
@@ -54,9 +65,6 @@ public class BookOrderingSystem {
 
     public static Connection connectToOracle(){
         Connection con = null;
-        public static String dbAddress = "jdbc:oracle:thin:@db18.cse.cuhk.edu.hk:1521/oradb.cse.cuhk.edu.hk";
-        public static String dbUsername = "h043"; // replace with your actual username
-        public static String dbPassword = "icedJalj"; // replace with your actual password
         try {
             // This line ensures the driver is registered
             Class.forName("oracle.jdbc.OracleDriver");
@@ -95,7 +103,7 @@ public class BookOrderingSystem {
                 insertData(conn, scanner);
                 break;
             case 4:
-                setSystemDate();
+                setSystemDate(conn, scanner);
                 break;
             case 5:
                 return; // Go back to the main menu
@@ -104,7 +112,7 @@ public class BookOrderingSystem {
         }
     }
 
-    public static void createTables(Connection conn) {
+    public static void createTable(Connection conn) {
         String[] createTableSQLs = new String[] {
             "CREATE TABLE book (" +
             "    ISBN VARCHAR2(13) PRIMARY KEY," +
@@ -155,7 +163,7 @@ public class BookOrderingSystem {
         }
     }
 
-    public static void deleteTables(Connection conn) {
+    public static void deleteTable(Connection conn) {
         // List of SQL DROP TABLE statements
         String[] dropTableSQLs = {
             "DROP TABLE category CASCADE CONSTRAINTS",
@@ -246,9 +254,6 @@ public class BookOrderingSystem {
                 System.out.println("The new date cannot be before the latest order date.");
             } else {
                 // If latestOrderDate is null or newDate is valid, set the new system date
-                // Presumably, you would save this new date to a database or configuration file
-                // For demonstration purposes, we print out the new date
-                systemDate = newDate; // Assuming systemDate is a static field
                 System.out.println("System date set to " + newDate);
             }
         } catch (DateTimeParseException e) {
@@ -286,24 +291,13 @@ public class BookOrderingSystem {
         return null;
     }
 
-    private static void showSystemInterface() {
-        // Here you will implement the options for the system interface:
-        // 1. Create table schemas
-        // 2. Delete table schemas
-        // 3. Insert data to the database
-        // 4. System Date Setting
-        // Include methods to handle each of these actions.
-        System.out.println("System Interface selected.");
-        // Implement the interface logic here.
-    }
-
-    private static void showCustomerInterface() {
+    private static void showCustomerInterface(Connection conn, Scanner scanner) {
         // Implement customer interface related options here
         System.out.println("Customer Interface selected.");
         // Implement the interface logic here.
     }
 
-    private static void showBookstoreInterface() {
+    private static void showBookstoreInterface(Connection conn, Scanner scanner) {
         // Implement bookstore interface related options here
         System.out.println("Bookstore Interface selected.");
         // Implement the interface logic here.
