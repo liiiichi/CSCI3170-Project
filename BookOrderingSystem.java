@@ -15,6 +15,8 @@ import java.sql.Date; // For java.sql.Date
 // import java.sql.Statement;
 
 
+
+
 public class BookOrderingSystem {
 
     private static final Scanner scanner = new Scanner(System.in);
@@ -22,7 +24,8 @@ public class BookOrderingSystem {
     public static String dbUsername = "h043"; // replace with your actual username
     public static String dbPassword = "icedJalj"; // replace with your actual password
     public static void main(String[] args) {
-        Connection conn = connectToOracle();
+        Connection conn;
+        conn = connectToOracle();
         int choice;
         do {
             LocalDate latestOrderDate = getLatestOrderDate(conn);
@@ -166,12 +169,12 @@ public class BookOrderingSystem {
     public static void deleteTable(Connection conn) {
         // List of SQL DROP TABLE statements
         String[] dropTableSQLs = {
-            "DROP TABLE category CASCADE CONSTRAINTS",
-            "DROP TABLE user CASCADE CONSTRAINTS",
+            // "DROP TABLE category CASCADE CONSTRAINTS",
+            "DROP TABLE book_author CASCADE CONSTRAINTS",
             "DROP TABLE book CASCADE CONSTRAINTS",
-            "DROP TABLE copy CASCADE CONSTRAINTS",
-            "DROP TABLE checkout_record CASCADE CONSTRAINTS",
-            "DROP TABLE author CASCADE CONSTRAINTS"
+            "DROP TABLE customer CASCADE CONSTRAINTS",
+            "DROP TABLE orders CASCADE CONSTRAINTS",
+            "DROP TABLE ordering CASCADE CONSTRAINTS"
         };
 
         // Execute each DROP TABLE statement
@@ -180,7 +183,7 @@ public class BookOrderingSystem {
                 stmt.execute(sql);
                 System.out.println("Dropped table using SQL: " + sql);
             } catch (SQLException e) {
-                System.out.println("An error occurred while dropping tables:");
+                System.out.println("An error occurred while dropping table with "+ sql);
                 System.out.println(e.getMessage());
                 // Break out of the loop if a statement fails to prevent subsequent statements from executing
                 break;
@@ -193,12 +196,12 @@ public class BookOrderingSystem {
         String folderPath = scanner.next();
 
         // Define the expected data files mapped to their corresponding SQL INSERT statements.
-        Map<String, String> dataFilesToTable = new HashMap<>();
+        Map<String, String> dataFilesToTable = new LinkedHashMap<>();
         dataFilesToTable.put("book.txt", "INSERT INTO book (ISBN, title, unit_price, no_of_copies) VALUES (?, ?, ?, ?)");
         dataFilesToTable.put("book_author.txt", "INSERT INTO book_author (ISBN, author_name) VALUES (?, ?)");
         dataFilesToTable.put("customer.txt", "INSERT INTO customer (customer_id, name, shipping_address, credit_card_no) VALUES (?, ?, ?, ?)");
-        dataFilesToTable.put("ordering.txt", "INSERT INTO ordering (order_id, ISBN, quantity) VALUES (?, ?, ?)");
         dataFilesToTable.put("orders.txt", "INSERT INTO orders (order_id, order_date, shipping_status, charge, customer_id) VALUES (?, TO_DATE(?, 'YYYY-MM-DD'), ?, ?, ?)");
+        dataFilesToTable.put("ordering.txt", "INSERT INTO ordering (order_id, ISBN, quantity) VALUES (?, ?, ?)");
 
         // Process each data file and insert the data into the database.
         for (Map.Entry<String, String> entry : dataFilesToTable.entrySet()) {
@@ -286,7 +289,7 @@ public class BookOrderingSystem {
                 return latestDate != null ? latestDate.toLocalDate() : null;
             }
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            // System.out.println(e.getMessage());
         }
         return null;
     }
