@@ -34,14 +34,31 @@ public class BookOrderingSystem {
     public static String dbAddress = "jdbc:oracle:thin:@db18.cse.cuhk.edu.hk:1521/oradb.cse.cuhk.edu.hk";
     public static String dbUsername = "h043"; // replace with your actual username
     public static String dbPassword = "icedJalj"; // replace with your actual password
+    public static LocalDate latestOrderDate = null;
+
+    private static void initializeDate(Connection conn) {
+        Path datePath = Paths.get("system_date.txt");
+        if (Files.exists(datePath)) {
+            try {
+                String dateString = new String(Files.readAllBytes(datePath));
+                latestOrderDate = LocalDate.parse(dateString);
+                System.out.println("Loaded system date from file: " + latestOrderDate);
+            } catch (IOException | DateTimeParseException e) {
+                System.out.println("Failed to load date from file, loading from database instead.");
+                latestOrderDate = getLatestOrderDate(conn);
+            }
+        } else {
+            latestOrderDate = getLatestOrderDate(conn);
+        }
+    }
 
     public static void main(String[] args) {
         clearScreen();
         Connection conn;
         conn = connectToOracle();
+        initializeDate(conn);
         int choice;
         do {
-            LocalDate latestOrderDate = getLatestOrderDate(conn);
             System.out.println("The System Date is now: " + (latestOrderDate != null ? latestOrderDate : "0000-00-00"));
             System.out.println("<This is the Book Ordering System.>");
             System.out.println("--------------------------------------------------");
@@ -264,36 +281,33 @@ public class BookOrderingSystem {
     }
 
     public static void setSystemDate(Connection conn, Scanner scanner) {
-        // Fetch the latest order date from the database
-        LocalDate latestOrderDate = getLatestOrderDate(conn);
-
-        // Inform the user of the latest order date or indicate that it's not set
-        if (latestOrderDate != null) {
-            System.out.println("Latest date in orders: " + latestOrderDate);
-        } else {
-            System.out.println("No orders found. Any date can be set as the system date.");
-        }
-
-        // Prompt the user for a new date
-        System.out.print("Please input the new system date (YYYYMMDD): ");
+        System.out.print("Please input the new system date (YYYY-MM-DD): ");
         String userInput = scanner.next();
         LocalDate newDate;
 
         try {
-            // Parse the user input into a LocalDate
-            newDate = LocalDate.parse(userInput, DateTimeFormatter.BASIC_ISO_DATE);
-
-            // If latestOrderDate is not null and newDate is before it, reject the change
+            newDate = LocalDate.parse(userInput);
             if (latestOrderDate != null && newDate.isBefore(latestOrderDate)) {
                 System.out.println("The new date cannot be before the latest order date.");
             } else {
-                // If latestOrderDate is null or newDate is valid, set the new system date
+                latestOrderDate = newDate;  // Update the global variable
+                updateDateFile(newDate);   // Update the date file
                 System.out.println("System date set to " + newDate);
             }
         } catch (DateTimeParseException e) {
-            System.out.println("Invalid date format. Please use the format YYYYMMDD.");
+            System.out.println("Invalid date format. Please use the format YYYY-MM-DD.");
         }
         pressAnyKeyToContinue();
+    }
+
+    private static void updateDateFile(LocalDate date) {
+        Path datePath = Paths.get("system_date.txt");
+        try {
+            Files.write(datePath, date.toString().getBytes());
+            System.out.println("System date saved to file.");
+        } catch (IOException e) {
+            System.out.println("Failed to save system date to file: " + e.getMessage());
+        }
     }
 
     // (Not sure)
