@@ -17,10 +17,6 @@ public class BookOrderingSystem {
     private static void clearScreen() {
         System.out.print("\033[H\033[2J");
         System.out.flush();
-
-        // This will just print out a bunch of new lines to push the old content out of
-        // view
-        // for (int i = 0; i < 50; i++) System.out.println();
     }
 
     private static void pressAnyKeyToContinue() {
@@ -336,41 +332,41 @@ public class BookOrderingSystem {
     private static void showCustomerInterface(Connection conn, Scanner scanner) {
         // Implement customer interface related options here
         clearScreen();
-        // while (true) {
+        while (true) {
 
-        System.out.println("<This is the customer interface.>");
-        // TODO: print -------
-        System.out.println("1. Book Search.");
-        System.out.println("2. Order Creation.");
-        System.out.println("3. Order Altering.");
-        System.out.println("4. Order Query.");
-        System.out.println("5. Back to main menu.");
-        System.out.println("");
-        System.out.print("What is your choice?..");
+            System.out.println("<This is the customer interface.>");
+            // TODO: print -------
+            System.out.println("1. Book Search.");
+            System.out.println("2. Order Creation.");
+            System.out.println("3. Order Altering.");
+            System.out.println("4. Order Query.");
+            System.out.println("5. Back to main menu.");
+            System.out.println("");
+            System.out.print("What is your choice?..");
 
-        int choice = scanner.nextInt();
+            int choice = scanner.nextInt();
 
-        switch (choice) {
-            case 1:
-                bookSearch(conn, scanner);
-                break;
-            case 2:
-                orderCreation(conn, scanner);
-                break;
-            case 3:
-                orderAltering(conn, scanner);
-                break;
-            case 4:
-                orderQuery(conn, scanner);
-                break;
-            case 5:
-                System.out.println("Returning to main menu...");
-                clearScreen();
-                return;
-            default:
-                System.out.println("Invalid choice. Please try again.");
+            switch (choice) {
+                case 1:
+                    bookSearch(conn, scanner);
+                    break;
+                case 2:
+                    orderCreation(conn, scanner);
+                    break;
+                case 3:
+                    orderAltering(conn, scanner);
+                    break;
+                case 4:
+                    orderQuery(conn, scanner);
+                    break;
+                case 5:
+                    System.out.println("Returning to main menu...");
+                    clearScreen();
+                    return;
+                default:
+                    System.out.println("Invalid choice. Please try again.");
+            }
         }
-        // }
 
     }
 
@@ -412,11 +408,11 @@ public class BookOrderingSystem {
 
             ResultSet rs = stmt.executeQuery();
 
-            int num_of_records = 0;
+            int numOfRecords = 0;
             System.out.println();
             while (rs.next()) {
-                num_of_records++;
-                System.out.println("Record " + num_of_records);
+                numOfRecords++;
+                System.out.println("Record " + numOfRecords);
                 System.out.println("ISBN: " + rs.getString("ISBN"));
                 System.out.println("Book Title: " + rs.getString("title"));
                 System.out.println("Unit Price: " + rs.getString("unit_price"));
@@ -429,7 +425,7 @@ public class BookOrderingSystem {
                 System.out.println();
             }
 
-            if (num_of_records == 0) {
+            if (numOfRecords == 0) {
                 System.out.println("No results found.");
             }
 
@@ -452,39 +448,6 @@ public class BookOrderingSystem {
                 "GROUP BY b.ISBN, b.title, b.unit_price, b.no_of_copies " +
                 "ORDER BY b.title ASC, b.ISBN ASC";
         executeBookQuery(conn, query, isbn);
-        // try (PreparedStatement stmt = conn.prepareStatement(query)) {
-        // stmt.setString(1, isbn);
-
-        // ResultSet rs = stmt.executeQuery();
-
-        // int num_of_records = 0;
-        // boolean flag = false; // check if at least one record is found
-
-        // while (rs.next()) {
-        // flag = true;
-        // num_of_records++;
-        // System.out.println("Record " + num_of_records);
-        // System.out.println("ISBN: " + rs.getString("ISBN"));
-        // System.out.println("Book Title:" + rs.getString("title"));
-        // System.out.println("Unit Price:" + rs.getString("unit_price"));
-        // System.out.println("No Of Available:" + rs.getString("no_of_copies"));
-        // System.out.println("Authors:");
-        // String authors[] = rs.getString("authors").split(",");
-        // for (int i = 0; i < authors.length; i++) {
-        // System.out.println((i + 1) + " :" + authors[i].trim());
-        // }
-        // System.out.println();
-        // }
-
-        // if (!flag) {
-        // System.out.println("No books found with the provided ISBN.");
-        // }
-        // pressAnyKeyToContinue();
-        // return;
-        // } catch (SQLException e) {
-        // System.out.println("An error occurred while searching for the book: " +
-        // e.getMessage());
-        // }
     }
 
     private static void searchByBookTitle(Connection conn, Scanner scanner) {
@@ -520,25 +483,413 @@ public class BookOrderingSystem {
 
     // Stub for orderCreation
     private static void orderCreation(Connection conn, Scanner scanner) {
-        // Implementation for creating a new order.
-        // The detailed implementation should handle input for the customer ID and books
-        // to be ordered,
-        // check the availability of the books, and insert the order into the database.
+        try {
+            // Disable auto-commit to start the transaction block
+            conn.setAutoCommit(false);
+    
+            System.out.print("Please enter your customer ID: ");
+            String customerId = scanner.next();
+    
+            // Check if customer ID exists in the database
+            if (!customerExists(conn, customerId)) {
+                System.out.println("Customer ID does not exist.");
+                pressAnyKeyToContinue();
+                return;
+            }
+    
+            // If customer exists, proceed to book ordering
+            Map<String, Integer> orderedBooks = new HashMap<>();
+            String isbn;
+            System.out.println(">> What books do you want to order?");
+            System.out.println(">> Input ISBN and then the quantity.");
+            System.out.println(">> You can press 'L' to see ordered list, or 'F' to finish ordering.");
+            do {
+                System.out.print("Please enter the book's ISBN: ");
+                isbn = scanner.next();
+    
+                if ("L".equalsIgnoreCase(isbn)) {
+                    listOrderedBooks(orderedBooks);
+                    continue;
+                }
+    
+                if ("F".equalsIgnoreCase(isbn)) {
+                    break;
+                }
+    
+                System.out.print("Please enter the quantity of the order: ");
+                int quantity = scanner.nextInt();
+    
+                // Check book availability and add to the order if available
+                if (checkBookAvailability(conn, isbn, quantity)) {
+                    orderedBooks.put(isbn, orderedBooks.getOrDefault(isbn, 0) + quantity);
+                } else {
+                    System.out.println("Requested quantity not available for ISBN: " + isbn);
+                }
+    
+            } while (true);
+    
+            if (!orderedBooks.isEmpty()) {
+                createAndInsertOrder(conn, customerId, orderedBooks);
+            } else {
+                System.out.println("No books were added to the order.");
+            }
+    
+            // Commit the transaction
+            conn.commit();
+            System.out.println("Order created successfully.");
+    
+        } catch (SQLException e) {
+            System.out.println("An error occurred: " + e.getMessage());
+            try {
+                conn.rollback();
+            } catch (SQLException se) {
+                System.out.println("Error during transaction rollback: " + se.getMessage());
+            }
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.out.println("Error resetting auto-commit: " + e.getMessage());
+            }
+        }
+        pressAnyKeyToContinue();
+
     }
 
+    private static boolean customerExists(Connection conn, String customerId) throws SQLException {
+        String query = "SELECT COUNT(*) FROM CUSTOMER WHERE CUSTOMER_ID = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, customerId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        }
+        return false;
+    }
+
+    private static void listOrderedBooks(Map<String, Integer> orderedBooks) {
+        if (orderedBooks.isEmpty()) {
+            System.out.println("ISBN\tNumber:");
+            return;
+        }
+        int maxIsbnLength = orderedBooks.keySet().stream().map(String::length).max(Integer::compare).orElse(0);
+
+        // Header
+        System.out.printf("%-" + maxIsbnLength + "s Number:\n", "ISBN");
+    
+        // Rows
+        for (Map.Entry<String, Integer> entry : orderedBooks.entrySet()) {
+            String isbn = entry.getKey();
+            Integer quantity = entry.getValue();
+            System.out.printf("%-" + maxIsbnLength + "s %d\n", isbn, quantity);
+        }
+    }
+    
+    // Checks if the requested number of book copies is available
+    private static boolean checkBookAvailability(Connection conn, String isbn, int requestedQuantity) throws SQLException {
+        String checkAvailabilityQuery = "SELECT NO_OF_COPIES FROM BOOK WHERE ISBN = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(checkAvailabilityQuery)) {
+            stmt.setString(1, isbn);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                int availableCopies = rs.getInt("NO_OF_COPIES");
+                return availableCopies >= requestedQuantity;
+            }
+        }
+        return false;
+    }
+    
+    private static void createAndInsertOrder(Connection conn, String customerId, Map<String, Integer> orderedBooks) throws SQLException {
+
+        String newOrderId = generateNewOrderId(conn);
+        double totalCharge = calculateTotalCharge(conn, orderedBooks);
+    
+        // insert new order
+        String insertOrderQuery = "INSERT INTO ORDERS (ORDER_ID, ORDER_DATE, SHIPPING_STATUS, CHARGE, CUSTOMER_ID) VALUES (?, CURRENT_DATE, 'N', ?, ?)";
+        try (PreparedStatement stmt = conn.prepareStatement(insertOrderQuery)) {
+            stmt.setString(1, newOrderId);
+            stmt.setDouble(2, totalCharge);
+            stmt.setString(3, customerId);
+            stmt.executeUpdate();
+        }
+    
+        // insert ordered books and update book copies
+        for (Map.Entry<String, Integer> entry : orderedBooks.entrySet()) {
+            String isbn = entry.getKey();
+            int quantity = entry.getValue();
+    
+            String insertOrderingQuery = "INSERT INTO ORDERING (ORDER_ID, ISBN, QUANTITY) VALUES (?, ?, ?)";
+            try (PreparedStatement stmt = conn.prepareStatement(insertOrderingQuery)) {
+                stmt.setString(1, newOrderId);
+                stmt.setString(2, isbn);
+                stmt.setInt(3, quantity);
+                stmt.executeUpdate();
+            }
+    
+            String updateBookCopiesQuery = "UPDATE BOOK SET NO_OF_COPIES = NO_OF_COPIES - ? WHERE ISBN = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(updateBookCopiesQuery)) {
+                stmt.setInt(1, quantity);
+                stmt.setString(2, isbn);
+                stmt.executeUpdate();
+            }
+        }
+    }
+    
+    private static String generateNewOrderId(Connection conn) throws SQLException {
+        String getMaxOrderIdQuery = "SELECT MAX(ORDER_ID) FROM ORDERS";
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(getMaxOrderIdQuery)) {
+            if (rs.next()) {
+                String maxOrderId = rs.getString(1);
+                return String.format("%08d", Integer.parseInt(maxOrderId.trim()) + 1);
+            }
+        }
+        return "00000000"; // default 
+    }
+    
+    // Calculate the total charge for the order
+    private static double calculateTotalCharge(Connection conn, Map<String, Integer> orderedBooks) throws SQLException {
+        double totalCharge = 0.0;
+        for (Map.Entry<String, Integer> entry : orderedBooks.entrySet()) {
+            String isbn = entry.getKey();
+            int quantity = entry.getValue();
+            String getPriceQuery = "SELECT UNIT_PRICE FROM BOOK WHERE ISBN = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(getPriceQuery)) {
+                stmt.setString(1, isbn);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    double unitPrice = rs.getDouble("UNIT_PRICE");
+                    totalCharge += unitPrice * quantity;
+                }
+            }
+        }
+        return totalCharge;
+    }
+    
     // Stub for orderAltering
     private static void orderAltering(Connection conn, Scanner scanner) {
-        // Implementation for altering an existing order.
-        // The detailed implementation should allow adding or removing copies of books
-        // from the order,
-        // and update the quantity in both the 'ordering' and 'book' tables.
+        try{
+            conn.setAutoCommit(false);
+
+            System.out.print("Please enter the OrderID that you want to change: ");
+            String orderId = scanner.next();
+            if (!displayOrderDetails(conn, orderId)) {
+                System.out.println("Order ID not found or already shipped.");
+                pressAnyKeyToContinue();
+                return;
+            }
+    
+            List<String> orderedBookIsbns = displayOrderedBooks(conn, orderId);
+            System.out.print("Which book you want to alter (input book no.): ");
+            int bookNo = scanner.nextInt();
+            if (bookNo < 1 || bookNo > orderedBookIsbns.size()) {
+                System.out.println("Invalid book number.");
+                pressAnyKeyToContinue();
+                return;
+            }
+            String selectedIsbn = orderedBookIsbns.get(bookNo - 1);
+
+            System.out.print("input 'add' or 'remove': ");
+            String action = scanner.next();
+            System.out.print("Input the number: ");
+            int quantity = scanner.nextInt();
+
+            if ("add".equalsIgnoreCase(action)) {
+                addCopiesToOrder(conn, orderId, selectedIsbn, quantity);
+                System.out.println("Current Order Details:");
+                displayOrderDetails(conn, orderId);
+                displayOrderedBooks(conn, orderId);
+            } else if ("remove".equalsIgnoreCase(action)) {
+                removeCopiesFromOrder(conn, orderId, selectedIsbn, quantity);
+                System.out.println("Current Order Details:");
+                displayOrderDetails(conn, orderId);
+                displayOrderedBooks(conn, orderId);
+            } else {
+                System.out.println("Invalid action.");
+            }
+
+            conn.commit();
+        } catch (SQLException e) {
+            System.out.println("An error occurred: " + e.getMessage());
+            try {
+                conn.rollback();
+            } catch (SQLException se) {
+                System.out.println("Error during transaction rollback: " + se.getMessage());
+            }
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.out.println("Error resetting auto-commit: " + e.getMessage());
+            }
+        }
+        pressAnyKeyToContinue();
+    
     }
 
-    // Stub for orderQuery
+    private static boolean displayOrderDetails(Connection conn, String orderId) throws SQLException {
+        String orderDetailsQuery = "SELECT ORDER_ID, SHIPPING_STATUS, CHARGE, CUSTOMER_ID FROM ORDERS WHERE ORDER_ID = ? AND SHIPPING_STATUS = \'N\'";
+        try (PreparedStatement stmt = conn.prepareStatement(orderDetailsQuery)) {
+            stmt.setString(1, orderId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next() && "N".equals(rs.getString("SHIPPING_STATUS").trim())) {
+                System.out.printf("order_id:%s shipping:%s charge=%.2f customerId=%s\n",
+                    rs.getString("ORDER_ID").trim(),
+                    rs.getString("SHIPPING_STATUS").trim(),
+                    rs.getDouble("CHARGE"),
+                    rs.getString("CUSTOMER_ID").trim());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> displayOrderedBooks(Connection conn, String orderId) throws SQLException {
+        String orderedBooksQuery = "SELECT ISBN, QUANTITY FROM ORDERING WHERE ORDER_ID = ?";
+        List<String> isbns = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(orderedBooksQuery)) {
+            stmt.setString(1, orderId);
+            ResultSet rs = stmt.executeQuery();
+            int bookNo = 1;
+            while (rs.next()) {
+                String isbn = rs.getString("ISBN").trim();
+                int quantity = rs.getInt("QUANTITY");
+                System.out.printf("book no: %d ISBN = %s quantity = %d\n", bookNo++, isbn, quantity);
+                isbns.add(isbn);
+            }
+        }
+        return isbns;
+    }
+    
+    private static void addCopiesToOrder(Connection conn, String orderId, String isbn, int additionalQuantity) throws SQLException {
+        if (!checkBookAvailability(conn, isbn, additionalQuantity)) {
+            System.out.println("Insufficient copies available to add.");
+            return;
+        }
+    
+        // Update the ordering table
+        String updateOrdering = "UPDATE ordering SET quantity = quantity + ? WHERE order_id = ? AND ISBN = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(updateOrdering)) {
+            pstmt.setInt(1, additionalQuantity);
+            pstmt.setString(2, orderId);
+            pstmt.setString(3, isbn);
+            int rowsAffected = pstmt.executeUpdate();
+            if (rowsAffected == 0) {
+                System.out.println("Failed to add copies to the order.");
+                return;
+            }
+        }
+    
+        // Update the book table
+        String updateBook = "UPDATE book SET no_of_copies = no_of_copies - ? WHERE ISBN = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(updateBook)) {
+            pstmt.setInt(1, additionalQuantity);
+            pstmt.setString(2, isbn);
+            pstmt.executeUpdate();
+        }
+    
+        // Update the order charge and date
+        updateOrderChargeAndDate(conn, orderId, isbn, additionalQuantity, true);
+    }
+
+    private static void updateOrderChargeAndDate(Connection conn, String orderId, String isbn, int quantityChange, boolean isAdding) throws SQLException {
+        // Retrieve current unit price
+        double unitPrice = getBookUnitPrice(conn, isbn);
+    
+        // Calculate charge difference
+        double chargeDiff = unitPrice * quantityChange;
+        if (!isAdding) {
+            chargeDiff = -chargeDiff;
+        }
+    
+        // Update the orders table
+        String updateOrders = "UPDATE orders SET charge = charge + ?, order_date = CURRENT_DATE WHERE order_id = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(updateOrders)) {
+            pstmt.setDouble(1, chargeDiff);
+            pstmt.setString(2, orderId);
+            pstmt.executeUpdate();
+        }
+        System.out.println("Updated!!!");
+    }
+
+    private static double getBookUnitPrice(Connection conn, String isbn) throws SQLException {
+        String query = "SELECT unit_price FROM book WHERE ISBN = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, isbn);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getDouble("unit_price");
+            }
+        }
+        return 0.0;
+    }
+    
+    private static void removeCopiesFromOrder(Connection conn, String orderId, String isbn, int removedQuantity) throws SQLException {
+        // update the ordering table
+        String updateOrdering = "UPDATE ordering SET quantity = quantity - ? WHERE order_id = ? AND ISBN = ? AND quantity >= ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(updateOrdering)) {
+            pstmt.setInt(1, removedQuantity);
+            pstmt.setString(2, orderId);
+            pstmt.setString(3, isbn);
+            pstmt.setInt(4, removedQuantity);
+            int rowsAffected = pstmt.executeUpdate();
+            if (rowsAffected == 0) {
+                System.out.println("Failed to remove copies from the order. Check if sufficient quantity is present.");
+                return;
+            }
+        }
+    
+        // update the book table
+        String updateBook = "UPDATE book SET no_of_copies = no_of_copies + ? WHERE ISBN = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(updateBook)) {
+            pstmt.setInt(1, removedQuantity);
+            pstmt.setString(2, isbn);
+            pstmt.executeUpdate();
+        }
+    
+        // Update the order charge and date
+        updateOrderChargeAndDate(conn, orderId, isbn, removedQuantity, false);
+    }
+
     private static void orderQuery(Connection conn, Scanner scanner) {
-        // Implementation for querying orders made by a customer in a particular year.
-        // The detailed implementation should include SQL queries to fetch and display
-        // the order details.
+        System.out.print("Please Input Customer ID: ");
+        String customerId = scanner.next();
+        System.out.print("Please Input the Year: ");
+        int year = scanner.nextInt();
+
+        String query = 
+        "SELECT o.order_id, o.order_date, LISTAGG(b.title || ' (' || ob.quantity || ' copies ordered)', ', ') WITHIN GROUP (ORDER BY b.title) AS books_ordered, " +
+        "o.charge, o.shipping_status " +
+        "FROM orders o " +
+        "JOIN ordering ob ON o.order_id = ob.order_id " +
+        "JOIN book b ON ob.ISBN = b.ISBN " +
+        "WHERE o.customer_id = ? AND EXTRACT(YEAR FROM o.order_date) = ? " +
+        "GROUP BY o.order_id, o.order_date, o.charge, o.shipping_status " +
+        "ORDER BY o.order_id";
+
+        try(PreparedStatement pstmt = conn.prepareStatement(query)){
+            pstmt.setString(1,customerId);
+            pstmt.setInt(2, year);
+
+            ResultSet rs = pstmt.executeQuery();
+            int count = 0;
+            while(rs.next()){
+                ++count;
+                System.out.println("Record : " + count);
+                System.out.println("OrderID : " + rs.getString("order_id"));
+                System.out.println("OrderDate : " + rs.getDate("order_date").toString());
+                System.out.println("Books Ordered : " + rs.getString("books_ordered"));
+                System.out.println("Charge : " + rs.getDouble("charge"));
+                System.out.println("Shipping Status : " + rs.getString("shipping_status").charAt(0));
+                System.out.println();
+            }
+            if(count == 0)
+                System.out.println("No Records Found!");
+        } catch (SQLException e) {
+            System.out.println("An error occurred while querying the orders: " + e.getMessage());
+        }
+        pressAnyKeyToContinue();
     }
 
     private static void showBookstoreInterface(Connection conn, Scanner scanner) {
