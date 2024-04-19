@@ -27,6 +27,7 @@ public class BookOrderingSystem {
         System.out.println("Press Enter key to continue...");
         try {
             System.in.read();
+            // scanner.nextLine();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -390,10 +391,10 @@ public class BookOrderingSystem {
                     searchByISBN(conn, scanner);
                     break;
                 case 2:
-                    // searchByBookTitle(conn, scanner);
+                    searchByBookTitle(conn, scanner);
                     break;
                 case 3:
-                    // searchByAuthorName(conn, scanner);
+                    searchByAuthorName(conn, scanner);
                     break;
                 case 4:
                     clearScreen();
@@ -405,8 +406,42 @@ public class BookOrderingSystem {
 
     }
 
+    private static void executeBookQuery(Connection conn, String query, String searchParameter) {
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, searchParameter);
+
+            ResultSet rs = stmt.executeQuery();
+
+            int num_of_records = 0;
+            System.out.println();
+            while (rs.next()) {
+                num_of_records++;
+                System.out.println("Record " + num_of_records);
+                System.out.println("ISBN: " + rs.getString("ISBN"));
+                System.out.println("Book Title: " + rs.getString("title"));
+                System.out.println("Unit Price: " + rs.getString("unit_price"));
+                System.out.println("No Of Available: " + rs.getString("no_of_copies"));
+                System.out.println("Authors:");
+                String[] authors = rs.getString("authors").split(",");
+                for (int i = 0; i < authors.length; i++) {
+                    System.out.println((i + 1) + " :" + authors[i].trim());
+                }
+                System.out.println();
+            }
+
+            if (num_of_records == 0) {
+                System.out.println("No results found.");
+            }
+
+            pressAnyKeyToContinue();
+        } catch (SQLException e) {
+            System.out.println("An error occurred while searching: " + e.getMessage());
+            pressAnyKeyToContinue();
+        }
+    }
+
     private static void searchByISBN(Connection conn, Scanner scanner) {
-        clearScreen();
+        // clearScreen();
         System.out.print("Input the ISBN: ");
         String isbn = scanner.next();
 
@@ -416,39 +451,71 @@ public class BookOrderingSystem {
                 "WHERE b.ISBN = ? " +
                 "GROUP BY b.ISBN, b.title, b.unit_price, b.no_of_copies " +
                 "ORDER BY b.title ASC, b.ISBN ASC";
+        executeBookQuery(conn, query, isbn);
+        // try (PreparedStatement stmt = conn.prepareStatement(query)) {
+        // stmt.setString(1, isbn);
 
-        try (PreparedStatement stmt = conn.prepareStatement(query)) {
-            stmt.setString(1, isbn);
+        // ResultSet rs = stmt.executeQuery();
 
-            ResultSet rs = stmt.executeQuery();
+        // int num_of_records = 0;
+        // boolean flag = false; // check if at least one record is found
 
-            int num_of_records = 0;
-            boolean flag = false; // check if at least one record is found
+        // while (rs.next()) {
+        // flag = true;
+        // num_of_records++;
+        // System.out.println("Record " + num_of_records);
+        // System.out.println("ISBN: " + rs.getString("ISBN"));
+        // System.out.println("Book Title:" + rs.getString("title"));
+        // System.out.println("Unit Price:" + rs.getString("unit_price"));
+        // System.out.println("No Of Available:" + rs.getString("no_of_copies"));
+        // System.out.println("Authors:");
+        // String authors[] = rs.getString("authors").split(",");
+        // for (int i = 0; i < authors.length; i++) {
+        // System.out.println((i + 1) + " :" + authors[i].trim());
+        // }
+        // System.out.println();
+        // }
 
-            while (rs.next()) {
-                flag = true;
-                num_of_records++;
-                System.out.println("Record " + num_of_records);
-                System.out.println("ISBN: " + rs.getString("ISBN"));
-                System.out.println("Book Title:" + rs.getString("title"));
-                System.out.println("Unit Price:" + rs.getString("unit_price"));
-                System.out.println("No Of Available:" + rs.getString("no_of_copies"));
-                System.out.println("Authors:");
-                String authors[] = rs.getString("authors").split(",");
-                for (int i = 0; i < authors.length; i++) {
-                    System.out.println((i + 1) + " :" + authors[i].trim());
-                }
-                System.out.println();
-            }
+        // if (!flag) {
+        // System.out.println("No books found with the provided ISBN.");
+        // }
+        // pressAnyKeyToContinue();
+        // return;
+        // } catch (SQLException e) {
+        // System.out.println("An error occurred while searching for the book: " +
+        // e.getMessage());
+        // }
+    }
 
-            if (!flag) {
-                System.out.println("No books found with the provided ISBN.");
-            }
-            pressAnyKeyToContinue();
-            return;
-        } catch (SQLException e) {
-            System.out.println("An error occurred while searching for the book: " + e.getMessage());
-        }
+    private static void searchByBookTitle(Connection conn, Scanner scanner) {
+        // clearScreen();
+        System.out.print("Input the Book Title (use '%' for wildcards): ");
+        scanner.nextLine();
+        String bookTitle = scanner.nextLine();
+        String query = "SELECT b.title, b.ISBN, b.unit_price, b.no_of_copies, LISTAGG(ba.author_name, ', ') WITHIN GROUP (ORDER BY ba.author_name) AS authors "
+                +
+                "FROM book b " +
+                "JOIN book_author ba ON b.ISBN = ba.ISBN " +
+                "WHERE LOWER(b.title) LIKE LOWER(?) " +
+                "GROUP BY b.title, b.ISBN, b.unit_price, b.no_of_copies " +
+                "ORDER BY b.title, b.ISBN";
+        // System.out.println(bookTitle);
+        executeBookQuery(conn, query, bookTitle);
+
+    }
+
+    private static void searchByAuthorName(Connection conn, Scanner scanner) {
+        System.out.print("Input the Author Name (use '%' for wildcards): ");
+        scanner.nextLine();
+        String author = scanner.nextLine();
+        String query = "SELECT b.title, b.ISBN, b.unit_price, b.no_of_copies, LISTAGG(ba.author_name, ', ') WITHIN GROUP (ORDER BY ba.author_name) AS authors "
+                +
+                "FROM book b " +
+                "JOIN book_author ba ON b.ISBN = ba.ISBN " +
+                "WHERE LOWER(ba.author_name) LIKE LOWER(?) " +
+                "GROUP BY b.title, b.ISBN, b.unit_price, b.no_of_copies " +
+                "ORDER BY b.title, b.ISBN";
+        executeBookQuery(conn, query, author);
     }
 
     // Stub for orderCreation
