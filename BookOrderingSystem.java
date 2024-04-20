@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.sql.Date; // For java.sql.Date
+import java.util.regex.Pattern; // For match YYYY-MM
 // import java.sql.Connection;
 // import java.sql.DriverManager;
 // import java.sql.PreparedStatement;
@@ -302,7 +303,205 @@ public class BookOrderingSystem {
 
     private static void showBookstoreInterface(Connection conn, Scanner scanner) {
         // Implement bookstore interface related options here
-        System.out.println("Bookstore Interface selected.");
+        
         // Implement the interface logic here.
+        int choice = -1;
+        do{
+            System.out.println("<This is the bookstore interface.>");
+            System.out.println("------------------------------");
+            System.out.println("1. Order Update.");
+            System.out.println("2. Order Query.");
+            System.out.println("3. N Most Popular Book Query.");
+            System.out.println("4. Back to main menu.");
+            System.out.println();
+
+            System.out.print("What is your choice??..");
+
+            choice = scanner.nextInt();
+            switch (choice) {
+                case 1:
+                    orderUpdate(conn, scanner);
+                    break;
+                case 2:
+                    orderQuery(conn, scanner);
+                    break;
+                case 3:
+                    nmostPopBook(conn, scanner);
+                    break;
+                case 4:
+                    return; // Go back to the main menu
+                default:
+                    System.out.println("Invalid choice. Please try again.");
+            }
+        } while (choice != 4);
+
+    }
+
+    private static void orderUpdate(Connection conn, Scanner scanner) {
+
+        // scan input
+        scanner.nextLine(); // clear the buffer
+        System.out.print("Please input the order ID: ");
+        String orderId = scanner.nextLine();
+
+        if (!orderId.matches("^[A-Za-z0-9]{8}$")){
+            System.out.println("Invalid order ID! Please enter valid order ID ");
+            return;
+        }
+
+        // Check current shipping status before deciding to update
+        String shippingStatus = "";
+        try (PreparedStatement checkStatusStmt = conn.prepareStatement(
+            "SELECT shipping_status FROM orders WHERE order_id = ?")) {
+            checkStatusStmt.setString(1, orderId);
+            ResultSet rs = checkStatusStmt.executeQuery();
+            if (rs.next()) {
+                shippingStatus = rs.getString("shipping_status");
+                if ("Y".equals(shippingStatus)) {
+                    System.out.println("Shipping status is already 'Y'. No update allowed.");
+                    return;
+                }
+            } else {
+                System.out.println("Order ID not found.");
+                return;
+            }
+        } catch (SQLException e) {
+            System.out.println("Error checking current shipping status: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+
+        // count number of books
+        int quantity_sum = 0;
+        try (PreparedStatement checkStatusStmt = conn.prepareStatement(
+            "SELECT SUM(quantity) AS quantity_sum FROM ordering WHERE order_id = ?")) {
+            checkStatusStmt.setString(1, orderId);
+            ResultSet rs = checkStatusStmt.executeQuery();
+            if (rs.next()) {
+                quantity_sum = rs.getInt("quantity_sum");
+            } else {
+                System.out.println("Error summing the quantity");
+                return;
+            }
+        } catch (SQLException e) {
+            System.out.println("Error checking current quantity: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+
+        System.out.println(
+            "the Shipping status of 00000003 is " +
+            shippingStatus +
+            " and "+
+            quantity_sum+
+            " books ordered"
+        );
+        System.out.println("Are you sure to update the shipping status? (Yes=Y)");
+
+        String userResponse = scanner.nextLine();
+        System.out.println("This is user res " +userResponse);
+
+        if (!("Yes".equals(userResponse) || "Y".equals(userResponse))) {
+            System.out.println("Update **CANCELLED**");
+            return;
+        }
+
+        // if yes
+        String update_sql = "UPDATE orders " +
+                "SET shipping_status = 'Y' " +
+                "WHERE order_id = ? AND shipping_status = 'N' " +
+                "AND EXISTS (" +
+                "  SELECT 1 " +
+                "  FROM ordering " +
+                "  WHERE order_id = ? AND quantity >= 1" +
+                ")";
+        
+        try (PreparedStatement pstmt = conn.prepareStatement(update_sql)) {
+            // Set parameters for the prepared statement
+            pstmt.setString(1, orderId);
+            pstmt.setString(2, orderId);
+
+            // Execute the update
+            int rowsAffected = pstmt.executeUpdate();
+            System.out.println(rowsAffected + " row(s) updated.");
+
+            System.out.println("Updated shiping status");
+            
+        } catch (SQLException e) {
+            System.out.println("Error updating order: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return;
+    }
+
+    private static void orderQuery(Connection conn, Scanner scanner) {
+
+        // scan input
+        scanner.nextLine(); // clear the buffer
+        System.out.print("Please input the Month for Order Query (e.g.2005-09):");
+        String yearMonth = scanner.nextLine().trim();
+        System.out.println();
+        System.out.println();
+
+        // validation here
+        if (!Pattern.matches("\\d{4}-\\d{2}", yearMonth)) {
+            System.out.println("Invalid input format.");
+            return;
+        }
+
+        String listOrdersQuery = "SELECT order_id, customer_id, order_date, charge FROM orders WHERE shipping_status = 'Y' AND TO_CHAR(order_date, 'YYYY-MM') = ? ORDER BY order_id";
+        String totalChargeQuery = "SELECT SUM(charge) AS total_charge FROM orders WHERE shipping_status = 'Y' AND TO_CHAR(order_date, 'YYYY-MM') = ?";
+
+        try {
+            PreparedStatement listStmt = conn.prepareStatement(listOrdersQuery);
+            listStmt.setString(1, yearMonth);
+            ResultSet rs = listStmt.executeQuery();
+
+            System.out.println("Orders in " + yearMonth + ":");
+
+            int index = 1;
+            while (rs.next()) {
+                System.out.println("Record : " + index);
+                System.out.println("order_id: " + rs.getInt("order_id"));
+                System.out.println("customer_id: " + rs.getString("customer_id"));
+                System.out.println("date: " + rs.getDate("order_date"));
+                System.out.println("charge: " + rs.getDouble("charge"));
+                System.out.println();
+                System.out.println();
+                index++;
+            }
+            rs.close();
+            listStmt.close();
+
+            // Query for total charge
+            PreparedStatement totalStmt = conn.prepareStatement(totalChargeQuery);
+            totalStmt.setString(1, yearMonth);
+            ResultSet rs_1 = totalStmt.executeQuery();
+
+            if (rs_1.next()) {
+                double totalCharge = rs_1.getDouble("total_charge");
+                if (rs_1.wasNull()) {
+                    System.out.println("No charges this month or no data available.");
+                } else {
+                    System.out.println("Total charge of the month is " + totalCharge);
+                }
+                System.out.println();
+                System.out.println();
+            }
+
+            rs_1.close();
+            totalStmt.close();
+
+
+        } catch (SQLException e) {
+            System.out.println("SQL Exception: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return;
+    }
+    private static void nmostPopBook(Connection conn, Scanner scanner) {
+        System.out.println("This is inside nmostPopBook function ");
+        return;
     }
 }
