@@ -1,5 +1,6 @@
 import java.sql.*;
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.file.*;
 import java.util.*;
 import java.time.LocalDate;
@@ -42,8 +43,20 @@ public class BookOrderingSystem {
         if (Files.exists(datePath)) {
             try {
                 String dateString = new String(Files.readAllBytes(datePath));
-                latestOrderDate = LocalDate.parse(dateString);
-                System.out.println("Loaded system date from file: " + latestOrderDate);
+                LocalDate txtDate = LocalDate.parse(dateString);
+                LocalDate dbDate = getLatestOrderDate(conn);
+                if (dbDate != null){
+                    if(txtDate.isBefore(dbDate)) {
+                        latestOrderDate = dbDate;
+                    }
+                    else {
+                        latestOrderDate = txtDate;
+                    }
+                }
+                else
+                    latestOrderDate = txtDate;
+                
+                // System.out.println("Loaded system date from file: " + latestOrderDate);
             } catch (IOException | DateTimeParseException e) {
                 System.out.println("Failed to load date from file, loading from database instead.");
                 latestOrderDate = getLatestOrderDate(conn);
@@ -57,9 +70,9 @@ public class BookOrderingSystem {
         clearScreen();
         Connection conn;
         conn = connectToOracle();
-        initializeDate(conn);
         int choice;
         do {
+            initializeDate(conn);
             System.out.println("The System Date is now: " + (latestOrderDate != null ? latestOrderDate : "0000-00-00"));
             System.out.println("<This is the Book Ordering System.>");
             System.out.println("--------------------------------------------------");
@@ -84,7 +97,8 @@ public class BookOrderingSystem {
                     showBookstoreInterface(conn, scanner);
                     break;
                 case 4:
-                    System.out.println((latestOrderDate != null ? latestOrderDate : "0000-00-00"));
+                    System.out.println("System Date: " + (latestOrderDate != null ? latestOrderDate : "0000-00-00"));
+                    pressAnyKeyToContinue();
                     break;
                 case 5:
                     System.out.println("Exiting the system...");
@@ -372,7 +386,7 @@ public class BookOrderingSystem {
                     orderAltering(conn, scanner);
                     break;
                 case 4:
-                    orderQuery(conn, scanner);
+                    orderQueryForCI(conn, scanner);
                     break;
                 case 5:
                     System.out.println("Returning to main menu...");
@@ -621,11 +635,13 @@ public class BookOrderingSystem {
         double totalCharge = calculateTotalCharge(conn, orderedBooks);
     
         // insert new order
-        String insertOrderQuery = "INSERT INTO ORDERS (ORDER_ID, ORDER_DATE, SHIPPING_STATUS, CHARGE, CUSTOMER_ID) VALUES (?, CURRENT_DATE, 'N', ?, ?)";
+        String insertOrderQuery = "INSERT INTO ORDERS (ORDER_ID, ORDER_DATE, SHIPPING_STATUS, CHARGE, CUSTOMER_ID) VALUES (?, ?, 'N', ?, ?)";
         try (PreparedStatement stmt = conn.prepareStatement(insertOrderQuery)) {
             stmt.setString(1, newOrderId);
-            stmt.setDouble(2, totalCharge);
-            stmt.setString(3, customerId);
+            Date sqlDate = Date.valueOf(latestOrderDate);
+            stmt.setDate(2, sqlDate);
+            stmt.setDouble(3, totalCharge);
+            stmt.setString(4, customerId);
             stmt.executeUpdate();
         }
     
@@ -752,7 +768,7 @@ public class BookOrderingSystem {
                 System.out.printf("order_id:%s shipping:%s charge=%.2f customerId=%s\n",
                     rs.getString("ORDER_ID").trim(),
                     rs.getString("SHIPPING_STATUS").trim(),
-                    rs.getDouble("CHARGE"),
+                    rs.getBigDecimal("CHARGE"),
                     rs.getString("CUSTOMER_ID").trim());
                 return true;
             }
@@ -819,10 +835,12 @@ public class BookOrderingSystem {
         }
     
         // Update the orders table
-        String updateOrders = "UPDATE orders SET charge = charge + ?, order_date = CURRENT_DATE WHERE order_id = ?";
+        String updateOrders = "UPDATE orders SET charge = charge + ?, order_date = ? WHERE order_id = ?";
         try (PreparedStatement pstmt = conn.prepareStatement(updateOrders)) {
             pstmt.setDouble(1, chargeDiff);
-            pstmt.setString(2, orderId);
+            Date sqlDate = Date.valueOf(latestOrderDate);
+            pstmt.setDate(2, sqlDate);
+            pstmt.setString(3, orderId);
             pstmt.executeUpdate();
         }
         System.out.println("Updated!!!");
@@ -867,7 +885,7 @@ public class BookOrderingSystem {
         updateOrderChargeAndDate(conn, orderId, isbn, removedQuantity, false);
     }
 
-    private static void orderQuery(Connection conn, Scanner scanner) {
+    private static void orderQueryForCI(Connection conn, Scanner scanner) {
         System.out.print("Please Input Customer ID: ");
         String customerId = scanner.next();
         System.out.print("Please Input the Year: ");
@@ -895,7 +913,7 @@ public class BookOrderingSystem {
                 System.out.println("OrderID : " + rs.getString("order_id"));
                 System.out.println("OrderDate : " + rs.getDate("order_date").toString());
                 System.out.println("Books Ordered : " + rs.getString("books_ordered"));
-                System.out.println("Charge : " + rs.getDouble("charge"));
+                System.out.println("Charge : " + rs.getBigDecimal("charge"));
                 System.out.println("Shipping Status : " + rs.getString("shipping_status").charAt(0));
                 System.out.println();
             }
@@ -910,7 +928,7 @@ public class BookOrderingSystem {
     private static void showBookstoreInterface(Connection conn, Scanner scanner) {
         // Implement bookstore interface related options here
         
-        // Implement the interface logic here.
+        clearScreen();
         int choice = -1;
         do{
             System.out.println("<This is the bookstore interface.>");
@@ -935,6 +953,7 @@ public class BookOrderingSystem {
                     nmostPopBook(conn, scanner);
                     break;
                 case 4:
+                    clearScreen();
                     return; // Go back to the main menu
                 default:
                     System.out.println("Invalid choice. Please try again.");
@@ -952,6 +971,7 @@ public class BookOrderingSystem {
 
         if (!orderId.matches("^[A-Za-z0-9]{8}$")){
             System.out.println("Invalid order ID! Please enter valid order ID ");
+            pressAnyKeyToContinue();
             return;
         }
 
@@ -965,15 +985,18 @@ public class BookOrderingSystem {
                 shippingStatus = rs.getString("shipping_status");
                 if ("Y".equals(shippingStatus)) {
                     System.out.println("Shipping status is already 'Y'. No update allowed.");
+                    pressAnyKeyToContinue();
                     return;
                 }
             } else {
                 System.out.println("Order ID not found.");
+                pressAnyKeyToContinue();
                 return;
             }
         } catch (SQLException e) {
             System.out.println("Error checking current shipping status: " + e.getMessage());
             e.printStackTrace();
+            pressAnyKeyToContinue();
             return;
         }
 
@@ -996,7 +1019,7 @@ public class BookOrderingSystem {
         }
 
         System.out.println(
-            "the Shipping status of 00000003 is " +
+            "the Shipping status of "+ orderId + " is " +
             shippingStatus +
             " and "+
             quantity_sum+
@@ -1005,10 +1028,11 @@ public class BookOrderingSystem {
         System.out.println("Are you sure to update the shipping status? (Yes=Y)");
 
         String userResponse = scanner.nextLine();
-        System.out.println("This is user res " +userResponse);
+        System.out.println("Your input: " + userResponse);
 
-        if (!("Yes".equals(userResponse) || "Y".equals(userResponse))) {
+        if (!("Yes".equalsIgnoreCase(userResponse) || "Y".equalsIgnoreCase(userResponse))) {
             System.out.println("Update **CANCELLED**");
+            pressAnyKeyToContinue();
             return;
         }
 
@@ -1037,7 +1061,7 @@ public class BookOrderingSystem {
             System.out.println("Error updating order: " + e.getMessage());
             e.printStackTrace();
         }
-
+        pressAnyKeyToContinue();
         return;
     }
 
@@ -1045,7 +1069,7 @@ public class BookOrderingSystem {
 
         // scan input
         scanner.nextLine(); // clear the buffer
-        System.out.print("Please input the Month for Order Query (e.g.2005-09):");
+        System.out.print("Please input the Month for Order Query (e.g.2005-09): ");
         String yearMonth = scanner.nextLine().trim();
         System.out.println();
         System.out.println();
@@ -1053,6 +1077,7 @@ public class BookOrderingSystem {
         // validation here
         if (!Pattern.matches("\\d{4}-\\d{2}", yearMonth)) {
             System.out.println("Invalid input format.");
+            pressAnyKeyToContinue();
             return;
         }
 
@@ -1069,10 +1094,10 @@ public class BookOrderingSystem {
             int index = 1;
             while (rs.next()) {
                 System.out.println("Record : " + index);
-                System.out.println("order_id: " + rs.getInt("order_id"));
+                System.out.println("order_id: " + rs.getString("order_id"));
                 System.out.println("customer_id: " + rs.getString("customer_id"));
                 System.out.println("date: " + rs.getDate("order_date"));
-                System.out.println("charge: " + rs.getDouble("charge"));
+                System.out.println("charge: " + rs.getBigDecimal("charge"));
                 System.out.println();
                 System.out.println();
                 index++;
@@ -1086,7 +1111,9 @@ public class BookOrderingSystem {
             ResultSet rs_1 = totalStmt.executeQuery();
 
             if (rs_1.next()) {
-                double totalCharge = rs_1.getDouble("total_charge");
+                // double totalCharge = rs_1.getDouble("total_charge");
+                BigDecimal totalCharge = rs_1.getBigDecimal("total_charge");
+
                 if (rs_1.wasNull()) {
                     System.out.println("No charges this month or no data available.");
                 } else {
@@ -1104,6 +1131,7 @@ public class BookOrderingSystem {
             System.out.println("SQL Exception: " + e.getMessage());
             e.printStackTrace();
         }
+        pressAnyKeyToContinue();
         return;
     }
 
@@ -1119,7 +1147,7 @@ public class BookOrderingSystem {
             if (bookNumber <= 0) {
                 System.out.println("Please enter a positive number.");
                 System.out.println();
-                
+                pressAnyKeyToContinue();
                 return;
             }
         } catch (InputMismatchException e) {
@@ -1127,21 +1155,44 @@ public class BookOrderingSystem {
             System.out.println();
 
             scanner.nextLine(); // clear the buffer to handle the wrong input
+            pressAnyKeyToContinue();
             return;
         }
 
-        String nMostQuery = """
-        SELECT title, ISBN, total_ordered
-        FROM (
-            SELECT b.title, b.ISBN, SUM(o.quantity) AS total_ordered,
-                   DENSE_RANK() OVER (ORDER BY SUM(o.quantity) DESC) AS book_rank
-            FROM ordering o
-            JOIN book b ON o.ISBN = b.ISBN
-            GROUP BY b.title, b.ISBN
-        ) RankedBooks
-        WHERE book_rank <= ?
-        ORDER BY total_ordered DESC, title ASC, ISBN ASC
-        """;
+    
+        // This one cannot handle the third example case in project spec
+
+        // String nMostQuery = 
+        // "SELECT title, ISBN, total_ordered "+
+        // "FROM ( "+
+        // "    SELECT b.title, b.ISBN, SUM(o.quantity) AS total_ordered, "+
+        // "           DENSE_RANK() OVER (ORDER BY SUM(o.quantity) DESC) AS book_rank "+
+        // "    FROM ordering o "+
+        // "    JOIN book b ON o.ISBN = b.ISBN " +
+        // "    GROUP BY b.title, b.ISBN " +
+        // ") RankedBooks " +
+        // "WHERE book_rank <= ? " +
+        // "ORDER BY total_ordered DESC, title ASC, ISBN ASC";
+
+        String nMostQuery = 
+        " SELECT title, ISBN, total_ordered" +
+        " FROM (" +
+        "     SELECT b.title, b.ISBN, SUM(o.quantity) AS total_ordered" +
+        "     FROM ordering o" +
+        "     JOIN book b ON o.ISBN = b.ISBN" +
+        "     GROUP BY b.title, b.ISBN" +
+        " ) BookOrders" +
+        " WHERE total_ordered >= (" +
+        "     SELECT MIN(total_ordered) AS total_ordered" +
+        "     FROM (" +
+        "         SELECT SUM(quantity) AS total_ordered" +
+        "         FROM ordering" +
+        "         GROUP BY ISBN" +
+        "         ORDER BY SUM(quantity) DESC" +
+        "         FETCH FIRST ? ROWS ONLY" +
+        "     )" +
+        " )" +
+        " ORDER BY total_ordered DESC, title ASC, ISBN ASC";
 
         try (PreparedStatement pstmt = conn.prepareStatement(nMostQuery)) {
             pstmt.setInt(1, bookNumber);  // Set the rank limit to the user's input
@@ -1157,7 +1208,7 @@ public class BookOrderingSystem {
                     String title = rs.getString("title");
                     String isbn = rs.getString("ISBN");
                     int totalOrdered = rs.getInt("total_ordered");
-                    System.out.println(String.format("%-15s %-5s %-5d", isbn, title, totalOrdered));
+                    System.out.println(String.format("%-15s %-20s %-5d", isbn, title, totalOrdered));
                 } while (rs.next());
                 System.out.println();
             }
@@ -1165,7 +1216,7 @@ public class BookOrderingSystem {
             System.err.println("Error executing query: " + e.getMessage());
             e.printStackTrace();
         }
-
+        pressAnyKeyToContinue();
         return;
     }
 }
