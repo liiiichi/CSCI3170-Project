@@ -500,8 +500,49 @@ public class BookOrderingSystem {
         }
         return;
     }
+
     private static void nmostPopBook(Connection conn, Scanner scanner) {
-        System.out.println("This is inside nmostPopBook function ");
+
+        scanner.nextLine(); // clear the buffer
+        System.out.print("Please input the N popular books number: ");
+        int bookNumber = scanner.nextInt();
+
+        String nMostQuery = """
+        SELECT title, ISBN, total_ordered
+        FROM (
+            SELECT b.title, b.ISBN, SUM(o.quantity) AS total_ordered,
+                   DENSE_RANK() OVER (ORDER BY SUM(o.quantity) DESC) AS book_rank
+            FROM ordering o
+            JOIN book b ON o.ISBN = b.ISBN
+            GROUP BY b.title, b.ISBN
+        ) RankedBooks
+        WHERE book_rank <= ?
+        ORDER BY total_ordered DESC, title ASC, ISBN ASC
+        """;
+
+        try (PreparedStatement pstmt = conn.prepareStatement(nMostQuery)) {
+            pstmt.setInt(1, bookNumber);  // Set the rank limit to the user's input
+            
+            ResultSet rs = pstmt.executeQuery();
+            
+            // Check if the result set has data
+            if (!rs.next()) {
+                System.out.println("No books found.");
+            } else {
+                System.out.println("ISBN\tTitle\tcopies");
+                do {
+                    String title = rs.getString("title");
+                    String isbn = rs.getString("ISBN");
+                    int totalOrdered = rs.getInt("total_ordered");
+                    System.out.println(title + "\t" + isbn + "\t" + totalOrdered);
+                } while (rs.next());
+                System.out.println();
+            }
+        } catch (SQLException e) {
+            System.err.println("Error executing query: " + e.getMessage());
+            e.printStackTrace();
+        }
+
         return;
     }
 }
