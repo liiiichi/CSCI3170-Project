@@ -505,7 +505,24 @@ public class BookOrderingSystem {
 
         scanner.nextLine(); // clear the buffer
         System.out.print("Please input the N popular books number: ");
-        int bookNumber = scanner.nextInt();
+        int bookNumber;
+
+        try {
+            bookNumber = scanner.nextInt();
+            scanner.nextLine(); // clear the buffer
+            if (bookNumber <= 0) {
+                System.out.println("Please enter a positive number.");
+                System.out.println();
+                
+                return;
+            }
+        } catch (InputMismatchException e) {
+            System.out.println("Invalid input. Please enter an integer.");
+            System.out.println();
+
+            scanner.nextLine(); // clear the buffer to handle the wrong input
+            return;
+        }
 
         String nMostQuery = """
         SELECT title, ISBN, total_ordered
@@ -529,12 +546,12 @@ public class BookOrderingSystem {
             if (!rs.next()) {
                 System.out.println("No books found.");
             } else {
-                System.out.println("ISBN\tTitle\tcopies");
+                System.out.println(String.format("%-15s %-20s %-5s", "ISBN", "Title", "Copies"));
                 do {
                     String title = rs.getString("title");
                     String isbn = rs.getString("ISBN");
                     int totalOrdered = rs.getInt("total_ordered");
-                    System.out.println(title + "\t" + isbn + "\t" + totalOrdered);
+                    System.out.println(String.format("%-15s %-5s %-5d", isbn, title, totalOrdered));
                 } while (rs.next());
                 System.out.println();
             }
